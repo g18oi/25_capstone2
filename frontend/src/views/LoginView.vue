@@ -78,7 +78,7 @@ export default {
           }
         });
 
-
+        // 서버 응답에서 토큰과 역할(role), 이름(name)을 받습니다.
         const { access_token, role, name } = response.data;
 
 

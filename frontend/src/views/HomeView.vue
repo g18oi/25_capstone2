@@ -70,7 +70,6 @@
             </p>
             <div class="user-actions">
               <BaseButton type="primary" @click="$router.push('/history')">📋 내 돌봄 내역</BaseButton>
-              <BaseButton type="secondary" @click="$router.push('/procareapply')">📝 돌봄 공고 올리기</BaseButton>
               <BaseButton type="outline" @click="$router.push('/profile/edit/parent')">⚙️ 내 정보 수정</BaseButton>
               <button class="logout-link" @click="logout">로그아웃</button>
             </div>
@@ -93,7 +92,32 @@ export default {
     return {
       isLoggedIn: false,
       userName: sessionStorage.getItem('userName') || '학부모',
-      myMatches: [], 
+      myMatches: [
+        {
+          match_id: 101,
+          sitter_name: '김민지 선생님',
+          status_tag: '승인 대기',
+          status_description: '선생님 수락을 기다리고 있습니다.',
+          date_info: '2025.12.25 (예정)',
+          show_review_button: false
+        },
+        {
+          match_id: 102,
+          sitter_name: '이수현 선생님',
+          status_tag: '진행중',
+          status_description: '현재 돌봄 서비스가 진행 중입니다.',
+          date_info: '2025.12.20 ~ 진행중',
+          show_review_button: false
+        },
+        {
+          match_id: 103,
+          sitter_name: '박지성 선생님',
+          status_tag: '종료됨',
+          status_description: '돌봄이 종료되었습니다.',
+          date_info: '2025.12.10',
+          show_review_button: true
+        }
+      ], 
       recommendedTeachers: [
         { id: 1, name: '김선생님', tags: '#실내놀이 #영어' },
         { id: 2, name: '이선생님', tags: '#등하원 #책읽기' },
@@ -119,8 +143,6 @@ export default {
         console.warn("내 정보 로드 실패(api/user/me 없음 추정), 기본값 사용");
       }
 
-      this.fetchMyMatches(token);
-
     } else {
       this.isLoggedIn = false;
     }
@@ -131,8 +153,9 @@ export default {
         const res = await axios.get('/api/match/parent/list', {
           headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
         });
-        console.log("학부모 매칭 내역:", res.data);
-        this.myMatches = res.data;
+        if (res.data && res.data.length > 0) {
+            this.myMatches = res.data;
+        }
       } catch (error) {
         console.error("매칭 내역 로드 실패:", error);
       }
