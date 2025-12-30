@@ -2,7 +2,7 @@
   <div class="page-container">
     <div class="edit-card">
       <header class="edit-header">
-        <h1>✏️ 선생님 프로필 수정</h1>
+        <h1> 선생님 프로필 수정</h1>
         <p>회원가입 시 입력했던 정보를 수정합니다.</p>
       </header>
       
@@ -227,7 +227,7 @@ async updateProfile() {
   if (!confirm('프로필을 수정하시겠습니까?')) return;
 
   try {
-    // 보낼 데이터 준비
+
     const payload = {
         career: this.teacherInfo.experienceYear,
         career_detail: this.teacherInfo.experienceDesc,
@@ -309,4 +309,4 @@ async updateProfile() {
 .btn-cancel { background-color: #e9ecef; color: #555; }
 .btn-save { background-color: #4CAF50; color: white; box-shadow: 0 4px 6px rgba(76, 175, 80, 0.2); }
 .btn-save:hover { background-color: #43A047; }
-</style>
+</style> 

@@ -3,9 +3,11 @@
     <TheHeader />
     <main class="main-container">
       
-      <div class="detail-card" v-if="requestData">
+      <div v-if="isLoading" class="loading">불러오는 중...</div>
+
+      <div class="detail-card" v-else-if="requestData">
         <div class="card-header">
-          <span class="badge">모집중</span>
+          <span class="badge">요청서</span>
           <h2>{{ requestData.parent_name }} 학부모님의 요청</h2>
         </div>
 
@@ -16,7 +18,7 @@
           </div>
           <div class="info-row">
             <span class="label">⏰ 시간</span>
-            <span class="value">{{ requestData.start_time }} ({{ requestData.duration }}시간)</span>
+            <span class="value">{{ requestData.start_time }} ({{ requestData.duration }})</span>
           </div>
           <div class="info-row">
             <span class="label">💰 시급</span>
@@ -28,14 +30,18 @@
           </div>
           <div class="info-row">
             <span class="label">📝 요청 사항</span>
-            <span class="value">{{ requestData.requirements }}</span>
+            <span class="value requirements">{{ requestData.requirements }}</span>
           </div>
         </div>
 
-        <div class="btn-group">
-          <button class="back-btn" @click="$router.go(-1)">목록으로</button>
-          <button class="reject-btn" @click="rejectRequest">거절하기</button>
-          <button class="accept-btn" @click="acceptRequest">수락하기</button>
+        <div class="btn-group" v-if="requestData.status === 'pending'">
+          <button class="back-btn" @click="$router.go(-1)">뒤로가기</button>
+          <button class="reject-btn" @click="handleResponse(false)">거절하기</button>
+          <button class="accept-btn" @click="handleResponse(true)">수락하기</button>
+        </div>
+        <div class="status-msg" v-else>
+            이미 <strong>{{ requestData.status }}</strong> 처리된 요청입니다.
+            <button class="back-btn" @click="$router.go(-1)" style="margin-left: 10px;">목록으로</button>
         </div>
       </div>
 
@@ -49,63 +55,59 @@
 </template>
 
 <script>
-import TheHeader from '../components/TheHeader.vue';
+import axios from 'axios';
+import TheHeader from '@/components/TheHeader.vue';
 
 export default {
   components: { TheHeader },
   data() {
     return {
       requestData: null,
-      allRequests: [
-        {
-          id: 1,
-          parent_name: '이영희',
-          location: '서울 강남구 역삼동',
-          start_time: '14:00:00',
-          duration: 3,
-          hourly_pay: 15000,
-          created_at: '2025-12-20T09:00:00',
-          children_info: '7세 남아 (활동적임)',
-          requirements: '영어 놀이를 위주로 부탁드려요.'
-        },
-        {
-          id: 2,
-          parent_name: '박철수',
-          location: '서울 서초구 반포동',
-          start_time: '10:00:00',
-          duration: 4,
-          hourly_pay: 18000,
-          created_at: '2025-12-21T11:00:00',
-          children_info: '5세 여아 (낯가림 있음)',
-          requirements: '책 읽어주기를 좋아해요. 차분하게 놀아주세요.'
-        }
-      ]
+      isLoading: false
     };
   },
   mounted() {
-    const id = parseInt(this.$route.params.id);
-    this.requestData = this.allRequests.find(req => req.id === id);
-
-    if (!this.requestData) {
-      console.error("해당 ID의 요청을 찾을 수 없습니다:", id);
-    }
+    const id = this.$route.params.id;
+    this.fetchDetail(id);
   },
   methods: {
+    async fetchDetail(id) {
+        this.isLoading = true;
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get(`/api/match/${id}`, {
+                headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
+            });
+            this.requestData = res.data;
+        } catch (error) {
+            console.error("상세 정보 로드 실패:", error);
+            alert("정보를 불러오지 못했습니다.");
+        } finally {
+            this.isLoading = false;
+        }
+    },
     formatPay(pay) {
-      return pay ? pay.toLocaleString() : '0';
+      return pay ? Number(pay).toLocaleString() : '0';
     },
-    acceptRequest() {
-      if(!this.requestData) return;
-      if(confirm('이 요청을 수락하시겠습니까?')) {
-        alert(`${this.requestData.parent_name}님의 요청을 수락했습니다!\n(채팅방이 생성됩니다)`);
+    async handleResponse(accept) {
+      if(!confirm(accept ? '이 요청을 수락하시겠습니까?' : '정말 거절하시겠습니까?')) return;
+
+      try {
+        const token = localStorage.getItem('token');
+        await axios.post('/api/match/response', null, {
+            params: { 
+                match_id: this.requestData.id,
+                accept: accept 
+            },
+            headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
+        });
+
+        alert(accept ? '수락되었습니다! 채팅방이 생성됩니다.' : '거절 처리되었습니다.');
         this.$router.push('/teacher-home');
-      }
-    },
-    rejectRequest() {
-      if(!this.requestData) return;
-      if(confirm('정말 거절하시겠습니까?')) {
-        alert('거절 처리되었습니다.');
-        this.$router.push('/teacher-home');
+
+      } catch (error) {
+        console.error("응답 처리 실패:", error);
+        alert("처리 중 오류가 발생했습니다.");
       }
     }
   }

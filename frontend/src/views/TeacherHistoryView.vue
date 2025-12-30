@@ -4,177 +4,183 @@
 
     <main class="manage-container">
       <div class="page-header">
-        <h1>📨 받은 돌봄 신청 내역</h1>
-        <p>선생님에게 들어온 의뢰를 관리해보세요.</p>
+        <h1>📨 내 돌봄 내역 (선생님)</h1>
       </div>
 
       <div class="tabs">
         <button :class="{ active: currentFilter === 'all' }" @click="currentFilter = 'all'">전체</button>
-        <button :class="{ active: currentFilter === 'pending' }" @click="currentFilter = 'pending'">대기중 🔥</button>
-        <button :class="{ active: currentFilter === 'confirmed' }" @click="currentFilter = 'confirmed'">확정됨</button>
+        <button :class="{ active: currentFilter === 'pending' }" @click="currentFilter = 'pending'">대기중</button>
+        <button :class="{ active: currentFilter === 'accepted' }" @click="currentFilter = 'accepted'">진행/완료</button>
       </div>
 
-      <div class="request-list">
+      <div v-if="isLoading" class="msg">내역을 불러오는 중입니다...</div>
+      <div v-else-if="filteredRequests.length === 0" class="msg">해당하는 내역이 없습니다.</div>
+
+      <div v-else class="request-list">
         <div
           v-for="req in filteredRequests"
-          :key="req.id"
+          :key="req.match_id"
           class="request-card"
           :class="{ highlight: req.status === 'pending' }"
         >
-          <div class="card-header">
-            <span class="parent-name">{{ req.parentName }} 학부모님</span>
-            <span :class="['status-badge', req.status]">
-              {{ getStatusText(req.status) }}
-            </span>
+          <div class="card-content" @click="goToDetail(req.match_id)">
+            <div class="card-header">
+              <span class="parent-name">{{ req.parent_name }} 학부모님</span>
+              <span :class="['status-badge', req.status]">{{ formatStatus(req.status) }}</span>
+            </div>
+            <p class="details">📍 {{ req.location || '지역 정보 없음' }}</p>
+            <p class="details">💰 {{ formatPay(req.hourly_pay) }}원/시</p>
+            <p class="date">{{ formatDate(req.created_at) }} 신청됨</p>
           </div>
 
-          <div class="card-body">
-            <p><strong>📅 일시:</strong> {{ req.date }} / {{ req.time }}</p>
-            <p><strong>📍 장소:</strong> {{ req.location }}</p>
-            <p><strong>💰 수익금:</strong> {{ req.pay.toLocaleString() }}원</p>
+          <div class="card-actions" v-if="req.status !== 'pending' && req.status !== 'rejected'">
+            <button class="btn-action chat" @click.stop="openChat(req.match_id)">
+              💬 채팅하기
+            </button>
+            <button class="btn-action report" @click.stop="openReport(req)">
+              🚨 신고하기
+            </button>
           </div>
-
-          <button class="btn-report" @click="openReportModal(req)">
-            🚨 학부모 신고하기
-          </button>
-
-          <div v-if="req.status === 'pending'" class="action-buttons">
-            <button class="btn-reject" @click="handleReject(req.id)">거절</button>
-            <button class="btn-accept" @click="handleAccept(req.id)">수락</button>
-          </div>
-
-          <div v-else class="status-msg">
-            {{ req.status === 'in-progress'
-              ? '✅ 매칭되어 진행 중입니다.'
-              : '❌ 거절/취소된 건입니다.' }}
-          </div>
-        </div>
-
-        <div v-if="filteredRequests.length === 0" class="empty-state">
-          <p>해당하는 신청 내역이 없습니다.</p>
         </div>
       </div>
-    </main>
-
-    <Teleport to="body">
+      
       <ReportModal
         :isVisible="reportModal.visible"
         :targetName="reportModal.targetName"
         :targetId="reportModal.targetId"
         @close="closeReportModal"
       />
-    </Teleport>
+
+    </main>
   </div>
 </template>
 
 <script>
-import TheHeader from '@/components/TheHeader.vue'
-import ReportModal from '@/components/ReportModal.vue'
+import axios from 'axios';
+import TheHeader from '@/components/TheHeader.vue';
+import ReportModal from '@/components/ReportModal.vue';
 
 export default {
   components: { TheHeader, ReportModal },
   data() {
     return {
+      isLoading: false,
+      requests: [],
       currentFilter: 'all',
-
-      requests: [
-        {
-          id: 1,
-          parentName: '이영희',
-          status: 'pending',
-          date: '2025.10.20',
-          time: '14:00 (3시간)',
-          location: '서울 강남구 역삼동',
-          pay: 45000
-        },
-        {
-          id: 2,
-          parentName: '박철수',
-          status: 'in-progress',
-          date: '2025.10.18',
-          time: '10:00 (2시간)',
-          location: '서울 서초구 반포동',
-          pay: 30000
-        },
-        {
-          id: 3,
-          parentName: '최민수',
-          status: 'rejected',
-          date: '2025.10.15',
-          time: '09:00 (4시간)',
-          location: '서울 송파구 잠실동',
-          pay: 60000
-        }
-      ],
-
       reportModal: {
         visible: false,
         targetName: '',
         targetId: null
       }
-    }
+    };
   },
   computed: {
     filteredRequests() {
-      if (this.currentFilter === 'all') return this.requests
-      if (this.currentFilter === 'pending') return this.requests.filter(r => r.status === 'pending')
-      if (this.currentFilter === 'confirmed') return this.requests.filter(r => r.status === 'in-progress')
-      return this.requests
+      if (this.currentFilter === 'all') return this.requests;
+      if (this.currentFilter === 'pending') return this.requests.filter(r => r.status === 'pending');
+      if (this.currentFilter === 'accepted') return this.requests.filter(r => ['accepted', 'completed'].includes(r.status));
+      return this.requests;
     }
   },
+  mounted() {
+    this.fetchHistory();
+  },
   methods: {
-    getStatusText(status) {
-      const map = {
-        pending: '수락 대기',
-        'in-progress': '매칭 확정',
-        rejected: '거절됨'
-      }
-      return map[status] || status
-    },
-
-    handleAccept(id) {
-      if (confirm('수락하시겠습니까?')) {
-        const item = this.requests.find(r => r.id === id)
-        if (item) item.status = 'in-progress'
-      }
-    },
-
-    handleReject(id) {
-      if (confirm('거절하시겠습니까?')) {
-        const item = this.requests.find(r => r.id === id)
-        if (item) item.status = 'rejected'
+    async fetchHistory() {
+      this.isLoading = true;
+      try {
+        const token = localStorage.getItem('token');
+        const res = await axios.get('/api/match/sitter/list', {
+           headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
+        });
+        this.requests = res.data;
+      } catch (error) {
+        console.error("내역 로드 실패:", error);
+      } finally {
+        this.isLoading = false;
       }
     },
-
-    openReportModal(req) {
-      this.reportModal.targetName = req.parentName
-      this.reportModal.targetId = req.id
-      this.reportModal.visible = true
+    formatStatus(status) {
+      const map = { 
+        'pending': '대기중', 
+        'accepted': '진행중', 
+        'rejected': '거절됨', 
+        'completed': '종료됨' 
+      };
+      return map[status] || status;
+    },
+    formatPay(pay) {
+      return pay ? Number(pay).toLocaleString() : '0';
+    },
+    formatDate(dateStr) {
+      if(!dateStr) return '';
+      return dateStr.split('T')[0];
+    },
+    goToDetail(id) {
+      this.$router.push(`/teacher/request/${id}`);
+    },
+    openChat(matchId) {
+      this.$router.push(`/chat/${matchId}`);
+    },
+    openReport(req) {
+      this.reportModal.targetName = req.parent_name;
+      this.reportModal.targetId = req.match_id;
+      this.reportModal.visible = true;
     },
     closeReportModal() {
-      this.reportModal.visible = false
-      this.reportModal.targetName = ''
-      this.reportModal.targetId = null
+      this.reportModal.visible = false;
     }
   }
-}
+};
 </script>
 
 <style scoped>
 .manage-page { background-color: #f8f9fa; min-height: 100vh; }
 .manage-container { max-width: 600px; margin: 0 auto; padding: 20px; }
-.page-header h1 { font-size: 1.4rem; margin-bottom: 5px; }
-.page-header p { color: #666; margin-bottom: 20px; }
 
 .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
-.tabs button { flex: 1; padding: 10px; border: none; background: #eee; border-radius: 8px; font-weight: bold; }
-.tabs button.active { background: #4CAF50; color: white; }
+.tabs button {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  background: #eee;
+  border-radius: 8px;
+  font-weight: bold;
+}
+.tabs button.active {
+  background: #4CAF50;
+  color: white;
+}
 
-.request-card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 15px; border: 1px solid #eee; }
-.request-card.highlight { border: 2px solid #FF9800; }
+.request-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 15px;
+  border: 1px solid #eee;
+}
+.request-card.highlight {
+  border: 2px solid #FF9800;
+}
 
-.card-header { display: flex; justify-content: space-between; margin-bottom: 15px; }
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 15px;
+}
 .parent-name { font-weight: bold; }
+
+.btn-chat {
+  margin-top: 10px;
+  background: none;
+  border: none;
+  color: #F59E0B;
+  font-weight: bold;
+  cursor: pointer;
+}
+.btn-chat:hover {
+  text-decoration: underline;
+}
 
 .btn-report {
   margin-top: 10px;
@@ -185,10 +191,34 @@ export default {
   cursor: pointer;
 }
 
-.action-buttons { display: flex; gap: 10px; margin-top: 15px; }
-.btn-accept { background: #4CAF50; color: white; border: none; padding: 10px; border-radius: 8px; }
-.btn-reject { background: #ffebee; color: #d32f2f; border: none; padding: 10px; border-radius: 8px; }
+.action-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+.btn-accept {
+  background: #4CAF50;
+  color: white;
+  border: none;
+  padding: 10px;
+  border-radius: 8px;
+}
+.btn-reject {
+  background: #ffebee;
+  color: #d32f2f;
+  border: none;
+  padding: 10px;
+  border-radius: 8px;
+}
 
-.status-msg { margin-top: 15px; text-align: center; color: #888; }
-.empty-state { text-align: center; padding: 40px 0; color: #888; }
+.status-msg {
+  margin-top: 15px;
+  text-align: center;
+  color: #888;
+}
+.empty-state {
+  text-align: center;
+  padding: 40px 0;
+  color: #888;
+}
 </style>

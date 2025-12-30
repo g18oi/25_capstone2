@@ -55,7 +55,7 @@ export default {
 }
 
 
-/* Outline 버튼 (노란색 테두리) */
+
 .base-button.outline {
   background-color: transparent;
   color: #FBBF24;

@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
+
 import LoginView from '../views/LoginView.vue';
 import SignUpView from '../views/SignUpView.vue';
 import OnboardingView from '../views/OnboardingView.vue';
@@ -6,8 +7,6 @@ import HomeView from '../views/HomeView.vue';
 import SearchView from '../views/SearchView.vue';
 import TeacherProfileView from '../views/TeacherProfileView.vue';
 import MyCareHistoryView from '../views/MyCareHistoryView.vue';
-import ReCareApplyView from '../views/ReCareApplyView.vue';
-import ProCareApplyView from '../views/ProCareApplyView.vue';
 import ForgetPassView from '../views/ForgetPassView.vue';
 import ResetPassView from '../views/ResetPassView.vue';
 import CustomerServiceView from '../views/CustomerServiceView.vue';
@@ -18,30 +17,45 @@ import TeacherProfileEdit from '../views/TeacherProfileEdit.vue';
 import TeacherHomeView from '@/views/TeacherHomeView.vue';
 import TeacherRequestDetailView from '../views/TeacherRequestDetailView.vue';
 import TeacherHistoryView from '../views/TeacherHistoryView.vue';
+import ChatView from '../views/ChatView.vue';
 
 const routes = [
   {
     path: '/',
     redirect: '/login'
   },
+
   { path: '/login', name: 'Login', component: LoginView },
   { path: '/signup', name: 'SignUp', component: SignUpView },
   { path: '/onboarding', name: 'Onboarding', component: OnboardingView },
+
+  // 학부모 
   { path: '/home', name: 'Home', component: HomeView },
   { path: '/teacher/:id', name: 'TeacherProfile', component: TeacherProfileView },
   { path: '/search', name: 'Search', component: SearchView },
   { path: '/history', name: 'MyCareHistory', component: MyCareHistoryView },
-  { path: '/procareapply', name: 'ProCareApplyView', component: ProCareApplyView },
-  { path: '/recareapply', name: 'ReCareApplyView', component: ReCareApplyView },
+
+  //비밀번호 분실 > 초기화
   { path: '/forgot-password', name: 'ForgetPassView', component: ForgetPassView },
   { path: '/reset-password', name: 'ResetPassView', component: ResetPassView },
+  
+  //고객센터
   { path: '/customer-service', name: 'customer-service', component: CustomerServiceView },
   { path: '/terms', name: 'terms', component: TermsView },
+
+  // 프로필 수정
   { path: '/profile/edit/parent', name: 'ParentProfileEdit', component: ParentProfileEdit },
   { path: '/profile/edit/teacher', name: 'TeacherProfileEdit', component: TeacherProfileEdit },
+
+  // 선생님 
   { path: '/teacher-home', name: 'TeacherHome', component: TeacherHomeView },
   { path: '/teacher/request/:id', name: 'TeacherRequestDetail', component: TeacherRequestDetailView },
   { path: '/teacher/history', name: 'TeacherHistory', component: TeacherHistoryView },
+
+  // 채팅
+  { path: '/chat/:roomId', name: 'Chat', component: ChatView },  
+
+  // 오류 
   { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundView },
 ];
 
@@ -52,7 +66,7 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   const isLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
-  const role = sessionStorage.getItem('userRole'); 
+  const role = sessionStorage.getItem('userRole'); // parent | sitter
 
   const publicPages = [
     '/login',

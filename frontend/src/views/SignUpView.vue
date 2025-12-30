@@ -460,9 +460,9 @@ export default {
             });
 
             if (response.data.match) {
-              this.locationStatus = { success: true, message: '✅ 인증 성공: 현재 위치와 활동 지역이 일치합니다.' };
+              this.locationStatus = { success: true, message: ' 인증 성공: 현재 위치와 활동 지역이 일치합니다.' };
             } else {
-              this.locationStatus = { success: false, message: `❌ 인증 실패: 실제 위치(${actualAddress})가 다릅니다.` };
+              this.locationStatus = { success: false, message: ` 인증 실패: 실제 위치(${actualAddress})가 다릅니다.` };
             }
 
           } catch (error) {
@@ -477,36 +477,45 @@ export default {
       );
     },
 
-    async mockReverseGeocoding(lat, lon) {
-      try {
-        const response = await axios.get('https://nominatim.openstreetmap.org/reverse', {
-          params: {
-            format: 'json',
-            lat: lat,
-            lon: lon,
-            zoom: 18,
-            addressdetails: 1,
-            'accept-language': 'ko'
-          }
-        });
-
-        if (response.data && response.data.address) {
-          const addr = response.data.address;
-          let city = addr.city || addr.province || addr.state || '';
-          const district = addr.borough || addr.district || addr.suburb || '';
-
-          const shortCity = city.replace(/(특별시|광역시|특별자치시|도|특별자치도)$/g, '');
-
-          return `${shortCity} ${district}`.trim();
-        }
-        
-        return "주소 확인 불가";
-
-      } catch (error) {
-        console.error(error);
-        return '위치 확인 에러';
+async mockReverseGeocoding(lat, lon) {
+  try {
+    const response = await axios.get('https://nominatim.openstreetmap.org/reverse', {
+      params: {
+        format: 'json',
+        lat: lat,
+        lon: lon,
+        zoom: 18,
+        addressdetails: 1,
+        'accept-language': 'ko'
       }
-    },
+    });
+
+    if (response.data && response.data.address) {
+      const addr = response.data.address;
+      
+      let province = addr.province || addr.state || '';
+      let city = addr.city || addr.county || '';
+      let district = addr.district || addr.borough || addr.suburb || '';
+
+      if (!province && city) {
+         province = city;
+         city = district; 
+      }
+
+      if (province && city) {
+         return `${province} - ${city}`;
+      }
+
+      return (province || city).trim();
+    }
+    
+    return "주소 확인 불가";
+
+  } catch (error) {
+    console.error(error);
+    return '위치 확인 에러';
+  }
+},
 
     validateInputs() {
       if (!this.name) return false;
@@ -574,7 +583,7 @@ export default {
 
         if (this.userType === 'parent') {
           fullAddress = `${this.parentInfo.selectedProvince} ${this.parentInfo.selectedDistrict} ${this.parentInfo.detailAddress}`.trim();
-          regionValue = `${this.parentInfo.selectedProvince} ${this.parentInfo.selectedDistrict}`;
+          regionValue = [`${this.parentInfo.selectedProvince} ${this.parentInfo.selectedDistrict}`];
         } else {
           fullAddress = this.teacherInfo.selectedRegions[0] || '주소 미입력';
           regionValue = this.teacherInfo.selectedRegions;

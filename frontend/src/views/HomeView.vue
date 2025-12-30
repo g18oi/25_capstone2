@@ -6,51 +6,40 @@
       <section class="search-section">
         <div class="search-bar" @click="$router.push('/search')">
           <input type="text" placeholder="어떤 돌봄을 찾으시나요?" readonly>
+          <span class="search-icon">🔍</span>
         </div>
       </section>
 
       <div class="content-grid">
         <section class="main-content-section">
           
-          <div v-if="!isLoggedIn">
-            <h2>맞춤 돌봄 선생님을 추천해드려요 ✨</h2>
-            <div class="recommendation-grid">
-              <div v-for="teacher in recommendedTeachers" :key="teacher.id" class="teacher-card" @click="$router.push('/teacher/'+teacher.id)">
-                <div class="teacher-photo"></div>
-                <div class="teacher-info">
-                  <p class="name">{{ teacher.name }}</p>
-                  <p class="tags">{{ teacher.tags }}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div v-else>
+          <div class="recommend-section">
             <div class="section-header-row">
-              <h2>📋 내 돌봄 신청 현황</h2>
-              <button class="view-history-link" @click="$router.push('/history')">
-                전체 내역 보기 >
-              </button>
+              <h2>
+                {{ isLoggedIn ? userName + '님을 위한 맞춤 선생님 ✨' : '맞춤 돌봄 선생님을 추천해드려요 ' }}
+              </h2>
             </div>
             
-            <div v-if="myMatches.length === 0" class="empty-state">
-              <p>신청한 돌봄 내역이 없습니다.</p>
-              <button class="apply-btn" @click="$router.push('/search')">선생님 찾으러 가기</button>
+            <div v-if="isLoading" class="loading-msg">
+               선생님 목록을 불러오는 중...
             </div>
 
-            <div class="match-list" v-else>
-              <div v-for="match in myMatches" :key="match.match_id" class="match-card">
-                <div class="match-header">
-                  <span class="status-badge" :class="getStatusClass(match.status_tag)">
-                    {{ match.status_tag }}
-                  </span>
-                  <span class="date">{{ match.date_info }}</span>
+            <div v-else class="recommendation-grid">
+              <div 
+                v-for="teacher in recommendedTeachers" 
+                :key="teacher.id" 
+                class="teacher-card" 
+                @click="$router.push('/teacher/'+teacher.user_id)"
+              >
+                <div class="teacher-photo">
+                  <div class="placeholder-img">👩‍🏫</div>
                 </div>
-                <div class="match-body">
-                  <h3>{{ match.sitter_name }}</h3>
-                  <p>{{ match.status_description }}</p>
+                <div class="teacher-info">
+                  <p class="name">{{ teacher.name }}</p>
+                  <p class="location">📍 {{ teacher.location || teacher.regions || '지역 정보 없음' }}</p>
+                  <p class="tags">{{ teacher.activities || teacher.tags }}</p>
+                  <p class="wage">{{ formatPay(teacher.hourly_pay || teacher.wage) }}원/시</p>
                 </div>
-                <button v-if="match.show_review_button" class="action-btn">후기 작성</button>
               </div>
             </div>
           </div>
@@ -59,12 +48,12 @@
 
         <aside class="sidebar-section">
           
-          <div class="login-block" v-if="!isLoggedIn">
+          <div class="sidebar-card login-block" v-if="!isLoggedIn">
             <p>로그인하고<br>맞춤 정보를 확인하세요!</p>
             <BaseButton type="primary" @click="$router.push('/login')">로그인 / 회원가입</BaseButton>
           </div>
 
-          <div class="user-info-block" v-else>
+          <div class="sidebar-card user-info-block" v-else>
             <p class="welcome-msg">
               반가워요, <strong>{{ userName }}</strong>님! 👋
             </p>
@@ -74,7 +63,8 @@
               <button class="logout-link" @click="logout">로그아웃</button>
             </div>
           </div>
-          <div class="ad-block"><span>광고</span></div>
+          
+          <div class="sidebar-card ad-block"><span>광고 영역</span></div>
         </aside>
       </div>
     </main>
@@ -83,46 +73,17 @@
 
 <script>
 import axios from 'axios';
-import BaseButton from '../components/BaseButton.vue'
-import TheHeader from '../components/TheHeader.vue'
+import BaseButton from '@/components/BaseButton.vue' 
+import TheHeader from '@/components/TheHeader.vue'
 
 export default {
   components: { BaseButton, TheHeader },
   data() {
     return {
       isLoggedIn: false,
+      isLoading: false, 
       userName: sessionStorage.getItem('userName') || '학부모',
-      myMatches: [
-        {
-          match_id: 101,
-          sitter_name: '김민지 선생님',
-          status_tag: '승인 대기',
-          status_description: '선생님 수락을 기다리고 있습니다.',
-          date_info: '2025.12.25 (예정)',
-          show_review_button: false
-        },
-        {
-          match_id: 102,
-          sitter_name: '이수현 선생님',
-          status_tag: '진행중',
-          status_description: '현재 돌봄 서비스가 진행 중입니다.',
-          date_info: '2025.12.20 ~ 진행중',
-          show_review_button: false
-        },
-        {
-          match_id: 103,
-          sitter_name: '박지성 선생님',
-          status_tag: '종료됨',
-          status_description: '돌봄이 종료되었습니다.',
-          date_info: '2025.12.10',
-          show_review_button: true
-        }
-      ], 
-      recommendedTeachers: [
-        { id: 1, name: '김선생님', tags: '#실내놀이 #영어' },
-        { id: 2, name: '이선생님', tags: '#등하원 #책읽기' },
-        { id: 3, name: '박선생님', tags: '#학습지도 #한글' }
-      ]
+      recommendedTeachers: []
     }
   },
   async mounted() {
@@ -130,7 +91,6 @@ export default {
     
     if (token) {
       this.isLoggedIn = true;
-      
       try {
         const userRes = await axios.get('/api/user/me', {
            headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
@@ -140,107 +100,96 @@ export default {
           sessionStorage.setItem('userName', this.userName);
         }
       } catch (e) {
-        console.warn("내 정보 로드 실패(api/user/me 없음 추정), 기본값 사용");
+        console.warn("내 정보 로드 실패 (토큰 만료 가능성)");
       }
-
-    } else {
-      this.isLoggedIn = false;
     }
+    await this.fetchRecommendedTeachers();
   },
   methods: {
-    async fetchMyMatches(token) {
+    async fetchRecommendedTeachers() {
+      this.isLoading = true; 
       try {
-        const res = await axios.get('/api/match/parent/list', {
-          headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
+        const res = await axios.get('/api/search', {
+           params: { sort_by: 'hourly_pay' }, 
+           headers: { 'ngrok-skip-browser-warning': 'true' }
         });
-        if (res.data && res.data.length > 0) {
-            this.myMatches = res.data;
-        }
+        this.recommendedTeachers = res.data; 
       } catch (error) {
-        console.error("매칭 내역 로드 실패:", error);
+        console.error("선생님 목록 로드 실패:", error);
+      } finally {
+        this.isLoading = false;
       }
     },
+    formatPay(pay) {
+      if (!pay) return '0';
+      return Number(pay).toLocaleString();
+    },
     logout() {
+      if(confirm('로그아웃 하시겠습니까?')) {
         localStorage.removeItem('token');
         sessionStorage.clear();
         this.isLoggedIn = false;
         this.$router.push('/login');
-    },
-    getStatusClass(status) {
-      if (status === '진행중') return 'ongoing';
-      if (status === '종료됨') return 'done';
-      return 'pending';
+      }
     }
   }
 }
 </script>
 
 <style scoped>
+/* 페이지 전체 스타일 */
 .home-page { background-color: #f8f9fa; min-height: 100vh; }
 .main-container { max-width: 1200px; margin: 0 auto; padding: 0 20px 60px 20px; }
 
+/* 검색바 */
 .search-section { padding: 40px 0; text-align: center; }
-.search-bar { max-width: 600px; margin: 0 auto; background: white; border-radius: 50px; padding: 15px 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); cursor: pointer; display: flex; align-items: center; border: 1px solid #eee; }
+.search-bar { 
+  max-width: 600px; margin: 0 auto; background: white; border-radius: 50px; 
+  padding: 15px 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+  cursor: pointer; display: flex; align-items: center; border: 1px solid #eee; 
+}
 .search-bar input { width: 100%; border: none; font-size: 16px; outline: none; cursor: pointer; }
+.search-icon { font-size: 1.2rem; }
 
+/* 레이아웃 (왼쪽 컨텐츠 + 오른쪽 사이드바) */
 .content-grid { display: flex; gap: 30px; align-items: flex-start; }
 .main-content-section { flex: 3; }
-.sidebar-section { flex: 1; min-width: 300px; position: sticky; top: 20px; }
+.sidebar-section { flex: 1; min-width: 280px; position: sticky; top: 20px; }
 
-.login-block, .user-info-block, .ad-block { background: white; border-radius: 20px; padding: 30px 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: center; margin-bottom: 20px; border: 1px solid #f1f3f5; }
-.ad-block { height: 200px; background: #e9ecef; display: flex; align-items: center; justify-content: center; color: #adb5bd; font-weight: bold; }
+/* 섹션 헤더 */
+.section-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.section-header-row h2 { margin: 0; font-size: 1.4rem; color: #333; font-weight: 800; }
 
-.welcome-msg { font-size: 1.1rem; margin-bottom: 20px; color: #333; }
-.welcome-msg strong { color: #F59E0B; }
-.user-actions { display: flex; flex-direction: column; gap: 10px; }
-.logout-link { background: none; border: none; color: #adb5bd; text-decoration: underline; cursor: pointer; margin-top: 15px; font-size: 0.85rem; }
-
-.section-header-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 15px;
-}
-.section-header-row h2 {
-  margin: 0;
-  font-size: 1.4rem;
-}
-.view-history-link {
-  background: none;
-  border: none;
-  color: #666;
-  font-size: 0.9rem;
-  cursor: pointer;
-  font-weight: 600;
-}
-.view-history-link:hover {
-  color: #F59E0B;
-  text-decoration: underline;
-}
-
+/* 추천 선생님 리스트 */
+.recommend-section { margin-top: 0; }
 .recommendation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
-.teacher-card { background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); cursor: pointer; transition: transform 0.2s; }
-.teacher-card:hover { transform: translateY(-5px); }
-.teacher-photo { height: 150px; background-color: #eee; }
+
+.teacher-card { 
+  background: white; border-radius: 15px; overflow: hidden; 
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05); cursor: pointer; transition: transform 0.2s; border: 1px solid #f1f3f5;
+}
+.teacher-card:hover { transform: translateY(-5px); border-color: #FBBF24; }
+
+.teacher-photo { height: 160px; background-color: #f1f3f5; position: relative; }
+.placeholder-img { width: 100%; height: 100%; background: #e9ecef; display: flex; align-items: center; justify-content: center; color: #adb5bd; font-size: 2rem; }
 .teacher-info { padding: 15px; }
-.teacher-info .name { font-weight: bold; font-size: 1.1rem; margin: 0 0 5px 0; }
-.teacher-info .tags { font-size: 0.85rem; color: #666; }
+.teacher-info .name { font-weight: bold; font-size: 1.1rem; margin: 0 0 5px 0; color: #333; }
+.teacher-info .location { font-size: 0.9rem; color: #888; margin-bottom: 8px; }
+.teacher-info .tags { font-size: 0.85rem; color: #666; margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.teacher-info .wage { font-weight: bold; color: #F59E0B; font-size: 1rem; text-align: right; margin: 0; }
 
-.match-list { display: flex; flex-direction: column; gap: 15px; }
-.match-card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border: 1px solid transparent; }
-.match-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
-.status-badge { padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; }
-.status-badge.pending { background: #E3F2FD; color: #1976D2; }
-.status-badge.ongoing { background: #E8F5E9; color: #2E7D32; }
-.status-badge.done { background: #eee; color: #666; }
-.date { font-size: 0.9rem; color: #888; }
-.match-body h3 { margin: 0 0 5px 0; font-size: 1.1rem; color: #333; }
-.match-body p { margin: 0; color: #666; font-size: 0.95rem; }
-.action-btn { margin-top: 15px; padding: 8px 15px; background: #FFF3E0; color: #F57C00; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+/* 사이드바 스타일 */
+.sidebar-card { 
+  background: white; border-radius: 20px; padding: 30px 25px; 
+  box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: center; margin-bottom: 20px; border: 1px solid #f1f3f5; 
+}
+.ad-block { height: 200px; background: #e9ecef; display: flex; align-items: center; justify-content: center; color: #adb5bd; font-weight: bold; }
+.welcome-msg { font-size: 1.1rem; margin-bottom: 25px; color: #333; }
+.welcome-msg strong { color: #F59E0B; font-size: 1.3rem; }
+.user-actions { display: flex; flex-direction: column; gap: 12px; }
+.logout-link { background: none; border: none; color: #adb5bd; text-decoration: underline; cursor: pointer; margin-top: 10px; font-size: 0.85rem; }
 
-.empty-state { background: white; padding: 40px; border-radius: 15px; text-align: center; color: #888; }
-.apply-btn { margin-top: 15px; padding: 10px 20px; background: #FBBF24; color: white; border: none; border-radius: 20px; font-weight: bold; cursor: pointer; }
-
+/* 반응형 */
 @media (max-width: 900px) {
   .content-grid { flex-direction: column; }
   .main-content-section, .sidebar-section { width: 100%; }
